@@ -45,10 +45,9 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 		ctx := context.Background()
-		//	client, err := client.NewClientWithOpts(client.FromEnv)
 		client, err := client.NewEnvClient()
 		if err != nil {
-			log.Println("Get Docker API Failed")
+			log.Error(ErrorGetAPIFail)
 			return err
 		}
 		// Create a Docker API Client and current Context
@@ -57,22 +56,14 @@ func main() {
 		containerName := c.GlobalString("name")
 		watcher := NodeWatcher{DockerClient: client, BackgroundContex: ctx,
 			Repo: dockerRepo, ImageName: dockerImage, ContainerName: containerName}
+
 		err = StartMonitor(watcher)
 		if err != nil {
-			log.Println("StartMonitor image", watcher.ImageName, " 's containers Failed")
-			return err
-		}
-
-		log.Println("host:", c.GlobalString("host"), "image:", c.GlobalString("image"))
-		dockerImage = c.GlobalString("repo")
-
-		if err != nil {
-			log.Println("listenContainer Error", err)
-			return err
+			log.Error(ErrorStartMonitorService.Error(), " image:", watcher.ImageName)
+			return ErrCombind(ErrorStartMonitorService, err)
 		}
 		return nil
 	}
-
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}

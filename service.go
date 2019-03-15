@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/go-connections/nat"
 
 	//	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
@@ -29,26 +31,43 @@ func StartMonitor(watcher NodeWatcher) error {
 		createConf, err := handleExistingContainer(watcher)
 
 		if err != nil {
-			log.Println("handleExistingContainer:", err)
+			log.Error(ErrCombind(ErrorHandleExistingContainer, err))
 			continue
 		}
-
 		// get ports and attach volumns because they are key information to create bitmark-node-container
 		if createConf != nil { // err == nil and createConf == nil => container does not exist
 			createdContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, createConf.Config,
 				createConf.HostConfig, createConf.NetworkingConfig, watcher.ContainerName)
+
 			if err != nil {
-				log.Println("conatiner create failed")
+				log.Error(ErrCombind(ErrorContainerCreate, err))
 				continue
 			}
-			err = watcher.startContainers(createdContainer.ID)
+			err = watcher.startContainer(createdContainer.ID)
 			if err != nil {
-				log.Println("start container fail:", err)
+				log.Error(ErrCombind(ErrorContainerStart, err))
 				continue
 			}
-			log.Println("start container successfully:", err)
-		} else { // Should not happend .. but ...
-			log.Println("brand new container, implement later", err)
+			log.Info("Start container successfully")
+		} else {
+			log.Info("Creating a brand new container")
+			newContainerConfig, err := getDefaultConfig(&watcher)
+			if err != nil {
+				log.Error(ErrCombind(ErrorConfigCreateNew, err))
+				continue
+			}
+			newContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, newContainerConfig.Config,
+				newContainerConfig.HostConfig, nil, watcher.ContainerName)
+			if err != nil {
+				log.Error(ErrCombind(ErrorContainerCreate, err))
+				continue
+			}
+			err = watcher.startContainer(newContainer.ID)
+			if err != nil {
+				log.Error(ErrCombind(ErrorContainerStart, err))
+				continue
+			}
+			log.Info("Start container successfully")
 		}
 
 	}
@@ -57,28 +76,36 @@ func StartMonitor(watcher NodeWatcher) error {
 
 // imageUpdateRoutine check image periodically
 func imageUpdateRoutine(w *NodeWatcher, updateStatus chan bool) {
-	// pull Image and check if image has been updated
 	ticker := time.NewTicker(pullImageInterval)
 	defer func() {
 		ticker.Stop()
-		close(updateStatus) // use the new channel, old channel should
+		close(updateStatus)
 	}()
+	// For the first time
+	newImage, err := w.pullImage()
+	if err != nil {
+		log.Info(ErrCombind(ErrorImagePull, err))
+	}
+	if newImage {
+		log.Info("imageUpdateRoutine update a new image")
+		updateStatus <- true
+	}
+	// End of the first time ---- can be delete later
 	for { // start  periodically check routine
-		log.Println("start a new Image Check routine")
 		select {
 		case <-ticker.C:
 			newImage, err := w.pullImage()
 			if err != nil {
-				log.Println("imageUpdateRoutine Check Image Error", err)
+				log.Info(ErrCombind(ErrorImagePull, err))
 				continue
 			}
 			if newImage {
-				log.Println("imageUpdateRoutine update the image")
+				log.Info("imageUpdateRoutine update a new image")
 				updateStatus <- true
 				break
 
 			}
-			log.Println("no new image found")
+			log.Info("no new image found")
 		}
 	}
 }
@@ -91,13 +118,15 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 		return nil, nil
 	}
 
-	for _, item := range nodeContainers {
-		log.Println("Container Info", dbgContainerInfo(item))
+	for _, container := range nodeContainers {
+		log.Println("Container Info", dbgContainerInfo(container))
+
 	}
-	// stop containers and rename the containers with postfix
+
 	if len(nodeContainers) != 0 {
-		nameContainer := watcher.getContainer(nodeContainers)
+		nameContainer := watcher.getNamedContainer(nodeContainers)
 		if nameContainer == nil { //not found is not an error
+			log.Warnf(ErrorNamedContainerNotFound.Error())
 			return nil, nil
 		}
 		jsonConfig, err := watcher.DockerClient.ContainerInspect(watcher.BackgroundContex, nameContainer.ID)
@@ -117,23 +146,28 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 			EndpointsConfig: jsonConfig.NetworkSettings.Networks,
 		}
 
-		err = watcher.stopContainers(nodeContainers, containerStopWaitTime)
+		namedContainers := append([]types.Container{}, *nameContainer)
+		err = watcher.stopContainers(namedContainers, containerStopWaitTime)
+
 		if err != nil {
 			return nil, err
 		}
 
-		oldContainers, err := watcher.getOldContainers()
-		if err == nil && len(oldContainers) != 0 {
-			for _, container := range oldContainers {
-				log.Println("old container id", container.ID)
-				watcher.forceRemoveContainers(container.ID)
-			}
-
+		oldContainers, err := watcher.getOldContainer()
+		if err == nil && oldContainers != nil {
+			watcher.forceRemoveContainer(oldContainers.ID)
 		}
-		err = watcher.renameContainers(nodeContainers, "_old")
+		err = watcher.renameContainer(nameContainer, "_old")
 		if err != nil {
 			return nil, err
 		}
+		log.Println("===Config ===")
+		log.Println(jsonConfig.Config)
+		log.Println("====HostConfig====")
+		log.Println(jsonConfig.HostConfig)
+		log.Println("===networkSetting===")
+		log.Println(jsonConfig.NetworkSettings)
+
 		return &CreateConfig{Config: &newConfig, HostConfig: jsonConfig.HostConfig, NetworkingConfig: &newNetworkConf}, err
 	}
 	// no container
@@ -142,49 +176,93 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 
 func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	config := CreateConfig{}
-	splites := strings.Split(watcher.ImageName, "/")
-	if len(splites) < 2 {
-		return nil, errors.New("wrong image name")
+
+	baseDir, err := builVolumSrcBaseDir(watcher)
+	if err != nil {
+		return nil, err
 	}
-	baseDir := UserHomeDir() + splites[2]
-	log.Println("baseDir", baseDir)
-	/*
-		exposedPorts, portBindings, _ := nat.ParsePortSpecs([]string{
-			"0.0.0.0:8080:2368",
-		})
-	*/
+	baseTargetDir := "/.config/bitmark-node"
+	publicIP := os.Getenv("PUBLIC_IP")
+	chain := os.Getenv("NETWORK")
+	if len(publicIP) == 0 {
+		publicIP = "127.0.0.1"
+	}
+	if len(chain) == 0 {
+		chain = "BITMARK"
+	}
+	additionEnv := append([]string{}, "PUBLIC_IP="+publicIP, "NETWORK="+chain)
+	exposePorts := nat.PortMap{
+		"2136/tcp": []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: "2136",
+			},
+		},
+		"2130/tcp": []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: "2130",
+			},
+		},
+		"2131/tcp": []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: "2131",
+			},
+		},
+		"9980/tcp": []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: "9980",
+			},
+		},
+	}
 	hconfig := container.HostConfig{
-		//PortBindings: portBindings,
+		NetworkMode:  "default",
+		PortBindings: exposePorts,
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeBind,
 				Source: baseDir + "/db",
-				Target: "/.config/bitmark-node/db",
+				Target: baseTargetDir + "/db",
 			},
 			{
 				Type:   mount.TypeBind,
 				Source: baseDir + "/data",
-				Target: "/.config/bitmark-node/bitmarkd/bitmark/data",
+				Target: baseTargetDir + "/bitmarkd/bitmark/data",
 			},
 			{
 				Type:   mount.TypeBind,
 				Source: baseDir + "/data-test",
-				Target: "/.config/bitmark-node/bitmarkd/bitmark/data-test",
+				Target: baseTargetDir + "/bitmarkd/testing/data",
 			},
 			{
 				Type:   mount.TypeBind,
 				Source: baseDir + "/log",
-				Target: "/.config/bitmark-node/bitmarkd/bitmark/log",
+				Target: baseTargetDir + "/bitmarkd/bitmark/log",
 			},
 			{
 				Type:   mount.TypeBind,
-				Source: baseDir + "/logtest",
-				Target: "/.config/bitmark-node/bitmarkd/testing/log",
+				Source: baseDir + "/log-test",
+				Target: baseTargetDir + "/bitmarkd/testing/log",
 			},
 		},
 	}
 	config.HostConfig = &hconfig
+	portmap := nat.PortSet{
+		"2136/tcp": struct{}{},
+		"2130/tcp": struct{}{},
+		"2131/tcp": struct{}{},
+		"9980/tcp": struct{}{},
+	}
+	config.Config = &container.Config{
+		Image:        watcher.ImageName,
+		Env:          additionEnv,
+		ExposedPorts: portmap,
+	}
 
+	log.Println("HostConfig=======")
+	log.Println(hconfig)
 	return &config, nil
 }
 
@@ -192,7 +270,7 @@ func removeDefaultDB() {
 
 }
 
-func UserHomeDir() string {
+func userHomeDir() string {
 	if runtime.GOOS == "windows" {
 		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
 		if home == "" {
@@ -201,4 +279,32 @@ func UserHomeDir() string {
 		return home
 	}
 	return os.Getenv("HOME")
+}
+
+func builVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
+	splitDir := strings.Split(watcher.ImageName, "/")
+	if len(splitDir) < 2 {
+		return "", errors.New("wrong image name")
+	}
+	// insert data into directory
+	splitName := strings.Split(splitDir[1], "-")
+	var sb strings.Builder
+	if len(splitName) == 3 { //stage directory
+		for idx, s := range splitName {
+			sb.WriteString(s)
+			if s == "node" {
+				sb.WriteString("-data")
+			}
+			if idx < len(splitName)-1 {
+				sb.WriteString("-")
+			}
+		}
+	} else {
+		return "", errors.New("source of attach volumne name is not expected")
+	}
+
+	// Prepare Host Config
+	baseDir := userHomeDir() + "/" + sb.String()
+	log.Println("baseDir", baseDir)
+	return baseDir, nil
 }
