@@ -6,6 +6,8 @@ import (
 )
 
 var ( // Error variable
+	// Directory Error
+	ErrorUserNodeDirEnv = errors.New("User input node base directory not found")
 	// Process Error
 	ErrorGetAPIFail              = errors.New("Get Docker API failed")
 	ErrorStartMonitorService     = errors.New("StartMonitor failed")

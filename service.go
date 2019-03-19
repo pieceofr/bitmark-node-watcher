@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -280,45 +278,10 @@ func removeDefaultDB() {
 	os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix)
 }
 
-func defaultUserHomeDir() string {
-	return "~"
-
-	/* If not in docker container
-	if runtime.GOOS == "windows" {
-		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
-		if home == "" {
-			home = os.Getenv("USERPROFILE")
-		}
-		return home
-	}
-	return os.Getenv("HOME")
-	*/
-}
-
 func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
-	splitDir := strings.Split(watcher.ImageName, "/")
-	if len(splitDir) < 2 {
-		return "", errors.New("wrong image name")
-	}
-	// insert data into directory
-	splitName := strings.Split(splitDir[1], "-")
-	var sb strings.Builder
-	if len(splitName) == 3 { //stage directory
-		for idx, s := range splitName {
-			sb.WriteString(s)
-			if s == "node" {
-				sb.WriteString("-data")
-			}
-			if idx < len(splitName)-1 {
-				sb.WriteString("-")
-			}
-		}
-	} else {
-		return "", errors.New("source of attach volumne name is not expected")
-	}
 
-	// Prepare Host Config
-	baseDir := defaultUserHomeDir() + "/" + sb.String()
-	log.Println("baseDir", baseDir)
-	return baseDir, nil
+	homeDir := os.Getenv("USER_NODE_BASE_DIR")
+	if len(homeDir) == 0 {
+		return "", ErrorUserNodeDirEnv
+	return homeDir, nil
 }

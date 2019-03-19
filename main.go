@@ -12,8 +12,7 @@ import (
 
 var version = "master"
 var commit = "unknown"
-var date = "unknown"
-var dockerImage = ""
+var date = ""
 
 const (
 	dockerAPIVersion string = "1.24"
