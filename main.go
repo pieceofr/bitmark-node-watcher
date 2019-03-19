@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/docker/docker/client"
@@ -14,10 +15,22 @@ var commit = "unknown"
 var date = "unknown"
 var dockerImage = ""
 
-// DockerAPIVersion Docker API Version is usesd
-const DockerAPIVersion string = "1.24"
+const (
+	dockerAPIVersion string = "1.24"
+	logPath          string = "/var/log/bitmark-node-watcher.log"
+)
 
 func main() {
+	logfile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		fmt.Printf("error opening file: %v", err)
+	}
+	log.SetOutput(logfile)
+	log.SetLevel(log.InfoLevel)
+
+	defer logfile.Close()
+
+	// assign it to the standard logger
 	app := cli.NewApp()
 	app.Name = "bitmark-node-watcher"
 	app.Version = version + " - " + commit + " - " + date
@@ -59,9 +72,10 @@ func main() {
 
 		err = StartMonitor(watcher)
 		if err != nil {
-			log.Error(ErrorStartMonitorService.Error(), " image:", watcher.ImageName)
-			return ErrCombind(ErrorStartMonitorService, err)
+			log.Errorf(ErrorStartMonitorService.Error(), " image name:", watcher.ImageName)
+			return err
 		}
+		log.Infof("Start Monitor host:", c.GlobalString("host"), "image:", c.GlobalString("image"))
 		return nil
 	}
 	if err := app.Run(os.Args); err != nil {
@@ -84,7 +98,7 @@ func before(c *cli.Context) error {
 func envConfig(c *cli.Context) error {
 	var err error
 	err = setEnvOptStr("DOCKER_HOST", c.GlobalString("host"))
-	err = setEnvOptStr("DOCKER_API_VERSION", DockerAPIVersion)
+	err = setEnvOptStr("DOCKER_API_VERSION", dockerAPIVersion)
 	return err
 }
 

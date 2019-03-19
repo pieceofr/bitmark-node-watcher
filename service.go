@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -18,12 +17,30 @@ import (
 )
 
 const (
-	containerStopWaitTime = 10 * time.Second
-	pullImageInterval     = 20 * time.Second
+	containerStopWaitTime = 15 * time.Second
+	pullImageInterval     = 180 * time.Second
+	recoverWaitTime       = 20 * time.Second
+)
+
+// Database to remove
+const (
+	nodeDataDirMainnet = "/.config/bitmark-node/bitmarkd/bitmark/data"
+	nodeDataDirTestnet = "/.config/bitmark-node/bitmarkd/testing/data"
+	blockLevelDB       = "bitmark-index.leveldb"
+	indexLevelDB       = "bitmark-index.leveldb"
+	oldDBPostfix       = ".old"
 )
 
 // StartMonitor  Monitor process
 func StartMonitor(watcher NodeWatcher) error {
+	log.Info("Monitoring Process Start")
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error(ErrorStartMonitorService.Error() + ": waiting for restart service")
+			time.Sleep(recoverWaitTime)
+			go StartMonitor(watcher)
+		}
+	}()
 	for {
 		updated := make(chan bool)
 		go imageUpdateRoutine(&watcher, updated)
@@ -103,7 +120,6 @@ func imageUpdateRoutine(w *NodeWatcher, updateStatus chan bool) {
 				log.Info("imageUpdateRoutine update a new image")
 				updateStatus <- true
 				break
-
 			}
 			log.Info("no new image found")
 		}
@@ -161,13 +177,6 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Println("===Config ===")
-		log.Println(jsonConfig.Config)
-		log.Println("====HostConfig====")
-		log.Println(jsonConfig.HostConfig)
-		log.Println("===networkSetting===")
-		log.Println(jsonConfig.NetworkSettings)
-
 		return &CreateConfig{Config: &newConfig, HostConfig: jsonConfig.HostConfig, NetworkingConfig: &newNetworkConf}, err
 	}
 	// no container
@@ -177,7 +186,7 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	config := CreateConfig{}
 
-	baseDir, err := builVolumSrcBaseDir(watcher)
+	baseDir, err := builDefaultVolumSrcBaseDir(watcher)
 	if err != nil {
 		return nil, err
 	}
@@ -261,16 +270,20 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 		ExposedPorts: portmap,
 	}
 
-	log.Println("HostConfig=======")
-	log.Println(hconfig)
 	return &config, nil
 }
 
 func removeDefaultDB() {
-
+	os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix)
+	os.Rename(nodeDataDirTestnet+"/"+blockLevelDB, nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix)
+	os.Rename(nodeDataDirMainnet+"/"+indexLevelDB, nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix)
+	os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix)
 }
 
-func userHomeDir() string {
+func defaultUserHomeDir() string {
+	return "~"
+
+	/* If not in docker container
 	if runtime.GOOS == "windows" {
 		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
 		if home == "" {
@@ -279,9 +292,10 @@ func userHomeDir() string {
 		return home
 	}
 	return os.Getenv("HOME")
+	*/
 }
 
-func builVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
+func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
 	splitDir := strings.Split(watcher.ImageName, "/")
 	if len(splitDir) < 2 {
 		return "", errors.New("wrong image name")
@@ -304,7 +318,7 @@ func builVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
 	}
 
 	// Prepare Host Config
-	baseDir := userHomeDir() + "/" + sb.String()
+	baseDir := defaultUserHomeDir() + "/" + sb.String()
 	log.Println("baseDir", baseDir)
 	return baseDir, nil
 }
