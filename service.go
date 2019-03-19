@@ -51,16 +51,27 @@ func StartMonitor(watcher NodeWatcher) error {
 		}
 		// get ports and attach volumns because they are key information to create bitmark-node-container
 		if createConf != nil { // err == nil and createConf == nil => container does not exist
+			err = renameDB()
+			if err != nil {
+				log.Error(ErrCombind(ErrorRenameDB, err))
+			}
 			createdContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, createConf.Config,
 				createConf.HostConfig, createConf.NetworkingConfig, watcher.ContainerName)
-
 			if err != nil {
 				log.Error(ErrCombind(ErrorContainerCreate, err))
+				err = recoverDB()
+				if err != nil {
+					log.Error(ErrCombind(ErrorRenameDB, err))
+				}
 				continue
 			}
 			err = watcher.startContainer(createdContainer.ID)
 			if err != nil {
 				log.Error(ErrCombind(ErrorContainerStart, err))
+				err = recoverDB()
+				if err != nil {
+					log.Error(ErrCombind(ErrorRenameDB, err))
+				}
 				continue
 			}
 			log.Info("Start container successfully")
@@ -71,15 +82,27 @@ func StartMonitor(watcher NodeWatcher) error {
 				log.Error(ErrCombind(ErrorConfigCreateNew, err))
 				continue
 			}
+			err = renameDB()
+			if err != nil {
+				log.Error(ErrCombind(ErrorRenameDB, err))
+			}
 			newContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, newContainerConfig.Config,
 				newContainerConfig.HostConfig, nil, watcher.ContainerName)
 			if err != nil {
 				log.Error(ErrCombind(ErrorContainerCreate, err))
+				err = recoverDB()
+				if err != nil {
+					log.Error(ErrCombind(ErrorRenameDB, err))
+				}
 				continue
 			}
 			err = watcher.startContainer(newContainer.ID)
 			if err != nil {
 				log.Error(ErrCombind(ErrorContainerStart, err))
+				err = recoverDB()
+				if err != nil {
+					log.Error(ErrCombind(ErrorRenameDB, err))
+				}
 				continue
 			}
 			log.Info("Start container successfully")
@@ -188,6 +211,7 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	baseTargetDir := "/.config/bitmark-node"
 	publicIP := os.Getenv("PUBLIC_IP")
 	chain := os.Getenv("NETWORK")
@@ -271,11 +295,36 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	return &config, nil
 }
 
-func removeDefaultDB() {
-	os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix)
-	os.Rename(nodeDataDirTestnet+"/"+blockLevelDB, nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix)
-	os.Rename(nodeDataDirMainnet+"/"+indexLevelDB, nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix)
-	os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix)
+func renameDB() error {
+	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirTestnet+"/"+blockLevelDB, nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirMainnet+"/"+indexLevelDB, nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
+		return err
+	}
+	return nil
+}
+
+func recoverDB() error {
+	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix, nodeDataDirMainnet+"/"+blockLevelDB); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix, nodeDataDirTestnet+"/"+blockLevelDB); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix, nodeDataDirMainnet+"/"+indexLevelDB); err != nil {
+		return err
+	}
+	if err := os.Rename(nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix, nodeDataDirTestnet+"/"+indexLevelDB); err != nil {
+		return err
+	}
+	return nil
 }
 
 func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {

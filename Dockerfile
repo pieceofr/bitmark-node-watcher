@@ -1,5 +1,9 @@
-FROM bitmark/go-env:go12 as go-env
+FROM golang:1.12.1-alpine
 
+RUN apk update && apk upgrade && apk add git curl netcat-openbsd wget net-tools vim bash
+
+ENV GOPATH /go
+ENV PATH="/go/bin:${PATH}"
 ENV GO111MODULE on
 
 RUN cd /go/src && \

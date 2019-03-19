@@ -8,6 +8,8 @@ import (
 var ( // Error variable
 	// Directory Error
 	ErrorUserNodeDirEnv = errors.New("User input node base directory not found")
+	ErrorRenameDB       = errors.New("rename db failed")
+	ErrorRecoverDB      = errors.New("rename db failed")
 	// Process Error
 	ErrorGetAPIFail              = errors.New("Get Docker API failed")
 	ErrorStartMonitorService     = errors.New("StartMonitor failed")
