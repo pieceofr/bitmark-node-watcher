@@ -283,5 +283,6 @@ func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
 	homeDir := os.Getenv("USER_NODE_BASE_DIR")
 	if len(homeDir) == 0 {
 		return "", ErrorUserNodeDirEnv
+	}
 	return homeDir, nil
 }
