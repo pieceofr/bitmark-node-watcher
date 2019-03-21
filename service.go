@@ -292,23 +292,39 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	return &config, nil
 }
 
-func renameDB() (err error) {
+func renameDB() (finalerr error) {
 	log.Info("befire:", nodeDataDirMainnet+"/"+blockLevelDB, " after:", nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix)
 
-	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
-		err = err
+	mainnetBlockDB := nodeDataDirMainnet + "/" + blockLevelDB
+	_, err := os.Stat(mainnetBlockDB)
+	if nil == err {
+		if err := os.Rename(mainnetBlockDB, mainnetBlockDB+oldDBPostfix); err != nil {
+			finalerr = err
+		}
 	}
-	if err := os.Rename(nodeDataDirTestnet+"/"+blockLevelDB, nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
-		err = err
+	mainnetIndexDB := nodeDataDirMainnet + "/" + indexLevelDB
+	_, err = os.Stat(mainnetIndexDB)
+	if nil == err {
+		if err = os.Rename(mainnetIndexDB, mainnetIndexDB+oldDBPostfix); err != nil {
+			finalerr = err
+		}
 	}
-	if err := os.Rename(nodeDataDirMainnet+"/"+indexLevelDB, nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
-		err = err
+	//
+	testnetBlockDB := nodeDataDirTestnet + "/" + blockLevelDB
+	_, err = os.Stat(testnetBlockDB)
+	if nil == err {
+		if err = os.Rename(testnetBlockDB, testnetBlockDB+oldDBPostfix); err != nil {
+			finalerr = err
+		}
 	}
-	if err := os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
-		return err
-
+	testnetIndexDB := nodeDataDirTestnet + "/" + indexLevelDB
+	_, err = os.Stat(testnetIndexDB)
+	if nil == err {
+		if err = os.Rename(testnetIndexDB, testnetIndexDB+oldDBPostfix); err != nil {
+			finalerr = err
+		}
 	}
-	return nil
+	return finalerr
 }
 func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
 	homeDir := os.Getenv("USER_NODE_BASE_DIR")
