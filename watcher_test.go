@@ -49,7 +49,6 @@ func TestStartContainer(t *testing.T) {
 
 	err = watcher.startContainer(newContainer.ID)
 	assert.NoError(t, err, ErrorContainerStart.Error())
-
 }
 
 func TestStopContainer(t *testing.T) {
@@ -82,6 +81,7 @@ func (mock *MockData) init() error {
 	mock.Env["NODE_NAME"] = "bitmarkNodeTest"
 	mock.Env["USER_NODE_BASE_DIR"] = mock.BaseDir
 	for k, v := range mock.Env {
+		os.Setenv(key, val)
 		log.Info("key:", k, " val:", v)
 	}
 	mock.SubDir = make(map[string]string)
