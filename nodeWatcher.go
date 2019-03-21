@@ -19,11 +19,9 @@ const (
 // pullImage Pull Specific Image
 func (w *NodeWatcher) pullImage() (updated bool, err error) {
 	reader, err := w.DockerClient.ImagePull(w.BackgroundContex, w.Repo, types.ImagePullOptions{})
-
 	if err != nil {
 		return false, err
 	}
-	//io.Copy(os.Stdout, reader) // printout result
 	defer reader.Close()
 	response, err := ioutil.ReadAll(reader)
 	updated = strings.Contains(string(response), newImageDownloadIndicator)
@@ -75,7 +73,7 @@ func (w *NodeWatcher) stopContainers(containers []types.Container, stopTimeout t
 			if err != nil {
 				return err
 			}
-			log.Infof("container:", container.ID, " is stoped")
+			log.Info("container:", container.ID, " is stoped")
 		}
 	}
 	return nil
@@ -101,22 +99,6 @@ func (w *NodeWatcher) removeContainer(containerID string) error {
 	}
 	return nil
 }
-func (w *NodeWatcher) waitForStopContainer(container types.Container, waitTime time.Duration) error {
-	timeout := time.After(waitTime)
-	for {
-		select {
-		case <-timeout:
-			return nil
-		default:
-			if ci, err := w.DockerClient.ContainerInspect(w.BackgroundContex, container.ID); err != nil {
-				return err
-			} else if !ci.State.Running {
-				return nil
-			}
-		}
-		time.Sleep(1 * time.Second)
-	}
-}
 
 func (w *NodeWatcher) renameContainer(container *types.Container, postfix string) error {
 	newName := container.Names[0] + postfix
@@ -124,7 +106,7 @@ func (w *NodeWatcher) renameContainer(container *types.Container, postfix string
 	if err != nil {
 		return err
 	}
-	log.Infof("Container:", container.ID, " is rename to ", newName)
+	log.Info("Container:", container.ID, " is rename to ", newName)
 	return nil
 }
 
@@ -132,7 +114,7 @@ func (w *NodeWatcher) getNamedContainer(c []types.Container) *types.Container {
 	compareName := "/" + w.ContainerName
 	for _, container := range c {
 		for _, n := range container.Names {
-			log.Infof("getNamedContainer name:", n)
+			log.Info("getNamedContainer name:", n)
 			if n == compareName {
 				return &container
 			}
@@ -144,7 +126,7 @@ func (w *NodeWatcher) checkOldContainer(c []types.Container) types.Container {
 	compareName := "/" + w.ContainerName + "_old"
 	for _, container := range c {
 		for _, n := range container.Names {
-			log.Infof("checkOldContainer name:", n)
+			log.Info("checkOldContainer name:", n)
 			if n == compareName {
 				return container
 			}

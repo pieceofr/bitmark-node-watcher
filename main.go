@@ -74,7 +74,7 @@ func main() {
 			log.Errorf(ErrorStartMonitorService.Error(), " image name:", watcher.ImageName)
 			return err
 		}
-		log.Infof("Start Monitor host:", c.GlobalString("host"), "image:", c.GlobalString("image"))
+		log.Info("Start Monitor host:", c.GlobalString("host"), "image:", c.GlobalString("image"))
 		return nil
 	}
 	if err := app.Run(os.Args); err != nil {

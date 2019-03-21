@@ -23,7 +23,11 @@ var ( // Error variable
 	ErrorNamedContainerNotFound = errors.New("Named container is not found")
 
 	// Image Errors
-	ErrorImagePull = errors.New("Image pull failed")
+	ErrorImagePull             = errors.New("Image pull failed")
+	ErrorGetContainerWithImage = errors.New("Get container with image failed")
+
+	// NodeWatcher Errors
+	ErrorCreateWatcher = errors.New("Create NodeWatcher failed")
 )
 
 func ErrCombind(cause, detail error) error {

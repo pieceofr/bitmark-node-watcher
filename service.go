@@ -24,7 +24,7 @@ const (
 const (
 	nodeDataDirMainnet = "/.config/bitmark-node/bitmarkd/bitmark/data"
 	nodeDataDirTestnet = "/.config/bitmark-node/bitmarkd/testing/data"
-	blockLevelDB       = "bitmark-index.leveldb"
+	blockLevelDB       = "bitmark-blocks.leveldb"
 	indexLevelDB       = "bitmark-index.leveldb"
 	oldDBPostfix       = ".old"
 )
@@ -107,7 +107,6 @@ func StartMonitor(watcher NodeWatcher) error {
 			}
 			log.Info("Start container successfully")
 		}
-
 	}
 	return nil
 }
@@ -122,7 +121,7 @@ func imageUpdateRoutine(w *NodeWatcher, updateStatus chan bool) {
 	// For the first time
 	newImage, err := w.pullImage()
 	if err != nil {
-		log.Info(ErrCombind(ErrorImagePull, err))
+		log.Info(ErrCombind(ErrorImagePull, err).Error())
 	}
 	if newImage {
 		log.Info("imageUpdateRoutine update a new image")
@@ -151,15 +150,9 @@ func imageUpdateRoutine(w *NodeWatcher, updateStatus chan bool) {
 func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 	nodeContainers, err := watcher.getContainersWithImage()
 	if err != nil { //not found is not an error
-		log.Println("getContainersWithImage err", err)
+		log.Error(ErrCombind(ErrorGetContainerWithImage, err))
 		return nil, nil
 	}
-
-	for _, container := range nodeContainers {
-		log.Println("Container Info", dbgContainerInfo(container))
-
-	}
-
 	if len(nodeContainers) != 0 {
 		nameContainer := watcher.getNamedContainer(nodeContainers)
 		if nameContainer == nil { //not found is not an error
@@ -171,6 +164,7 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 		if err != nil { //inspect fail is an error because we can not do anything about existing error
 			return nil, err
 		}
+
 		newConfig := container.Config{
 			Image:        watcher.ImageName,
 			ExposedPorts: jsonConfig.Config.ExposedPorts,
@@ -295,43 +289,43 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	return &config, nil
 }
 
-func renameDB() error {
+func renameDB() (err error) {
+
 	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirTestnet+"/"+blockLevelDB, nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirMainnet+"/"+indexLevelDB, nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirTestnet+"/"+indexLevelDB, nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix); err != nil {
 		return err
+
 	}
 	return nil
 }
+func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
+	homeDir := os.Getenv("USER_NODE_BASE_DIR")
+	if 0 == len(homeDir) {
+		return "", ErrorUserNodeDirEnv
+	}
+	return homeDir, nil
+}
 
-func recoverDB() error {
+func recoverDB() (err error) {
 	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix, nodeDataDirMainnet+"/"+blockLevelDB); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirTestnet+"/"+blockLevelDB+oldDBPostfix, nodeDataDirTestnet+"/"+blockLevelDB); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirMainnet+"/"+indexLevelDB+oldDBPostfix, nodeDataDirMainnet+"/"+indexLevelDB); err != nil {
-		return err
+		err = err
 	}
 	if err := os.Rename(nodeDataDirTestnet+"/"+indexLevelDB+oldDBPostfix, nodeDataDirTestnet+"/"+indexLevelDB); err != nil {
 		return err
 	}
 	return nil
-}
-
-func builDefaultVolumSrcBaseDir(watcher *NodeWatcher) (string, error) {
-
-	homeDir := os.Getenv("USER_NODE_BASE_DIR")
-	if len(homeDir) == 0 {
-		return "", ErrorUserNodeDirEnv
-	}
-	return homeDir, nil
 }
