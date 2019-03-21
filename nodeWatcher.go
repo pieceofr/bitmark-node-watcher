@@ -56,8 +56,9 @@ func (w *NodeWatcher) getOldContainer() (*types.Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	oldContainerName := "/" + w.ContainerName + w.Postfix
 	for _, container := range containers {
-		if container.Names[0] == "/"+w.ContainerName+"_old" {
+		if container.Names[0] == oldContainerName {
 			return &container, nil
 		}
 	}
@@ -100,8 +101,8 @@ func (w *NodeWatcher) removeContainer(containerID string) error {
 	return nil
 }
 
-func (w *NodeWatcher) renameContainer(container *types.Container, postfix string) error {
-	newName := container.Names[0] + postfix
+func (w *NodeWatcher) renameContainer(container *types.Container) error {
+	newName := container.Names[0] + w.Postfix
 	err := w.DockerClient.ContainerRename(w.BackgroundContex, container.ID, newName)
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func (w *NodeWatcher) getNamedContainer(c []types.Container) *types.Container {
 	return nil
 }
 func (w *NodeWatcher) checkOldContainer(c []types.Container) types.Container {
-	compareName := "/" + w.ContainerName + "_old"
+	compareName := "/" + w.ContainerName + w.Postfix
 	for _, container := range c {
 		for _, n := range container.Names {
 			log.Info("checkOldContainer name:", n)

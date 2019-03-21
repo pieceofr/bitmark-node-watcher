@@ -68,7 +68,7 @@ func main() {
 		dockerRepo := "docker.io/" + dockerImage
 		containerName := c.GlobalString("name")
 		watcher := NodeWatcher{DockerClient: client, BackgroundContex: ctx,
-			Repo: dockerRepo, ImageName: dockerImage, ContainerName: containerName}
+			Repo: dockerRepo, ImageName: dockerImage, ContainerName: containerName, Postfix: oldDBPostfix}
 
 		err = StartMonitor(watcher)
 		if err != nil {

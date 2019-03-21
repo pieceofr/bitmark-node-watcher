@@ -22,11 +22,12 @@ const (
 
 // Database to remove
 const (
-	nodeDataDirMainnet = "/.config/bitmark-node/bitmarkd/bitmark/data"
-	nodeDataDirTestnet = "/.config/bitmark-node/bitmarkd/testing/data"
-	blockLevelDB       = "bitmark-blocks.leveldb"
-	indexLevelDB       = "bitmark-index.leveldb"
-	oldDBPostfix       = ".old"
+	nodeDataDirMainnet  = "/.config/bitmark-node/bitmarkd/bitmark/data"
+	nodeDataDirTestnet  = "/.config/bitmark-node/bitmarkd/testing/data"
+	blockLevelDB        = "bitmark-blocks.leveldb"
+	indexLevelDB        = "bitmark-index.leveldb"
+	oldCotnainerPostfix = ".old"
+	oldDBPostfix        = ".old"
 )
 
 // StartMonitor  Monitor process
@@ -101,7 +102,7 @@ func StartMonitor(watcher NodeWatcher) error {
 				log.Error(ErrCombind(ErrorContainerStart, err))
 				err = recoverDB()
 				if err != nil {
-					log.Error(ErrCombind(ErrorRenameDB, err))
+					log.Error(ErrCombind(ErrorRecoverDB, err))
 				}
 				continue
 			}
@@ -188,7 +189,7 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 		if err == nil && oldContainers != nil {
 			watcher.forceRemoveContainer(oldContainers.ID)
 		}
-		err = watcher.renameContainer(nameContainer, "_old")
+		err = watcher.renameContainer(nameContainer)
 		if err != nil {
 			return nil, err
 		}

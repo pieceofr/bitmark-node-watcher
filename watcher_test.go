@@ -58,6 +58,17 @@ func TestStopContainer(t *testing.T) {
 	assert.NoError(t, err, ErrorContainerStop.Error())
 }
 
+func TestRenameContainer(t *testing.T) {
+	watcher := mockData.getWatcher()
+	containers, _ := watcher.getContainersWithImage()
+	container := watcher.getNamedContainer(containers)
+	assert.NotNil(t, container, 0, "No container to stop")
+	watcher.renameContainer(container)
+	container, err := watcher.getOldContainer()
+	assert.NotNil(t, container, "Rename Container fail")
+	assert.NoError(t, err, "get old container fail")
+
+}
 func (mock *MockData) init() error {
 	ctx := context.Background()
 	client, err := client.NewEnvClient()
@@ -67,7 +78,8 @@ func (mock *MockData) init() error {
 	mock.Watcher = NodeWatcher{DockerClient: client, BackgroundContex: ctx,
 		Repo:          "docker.io/bitmark/bitmark-node-test",
 		ImageName:     "bitmark/bitmark-node-test",
-		ContainerName: "bitmarkNodeTest"}
+		ContainerName: "bitmarkNodeTest",
+		Postfix:       oldCotnainerPostfix}
 	// Create Directory For Test
 	mock.createDir()
 	mock.BaseDir = userHomeDir() + "/bitmark-node-data-test"
@@ -81,7 +93,7 @@ func (mock *MockData) init() error {
 	mock.Env["NODE_NAME"] = "bitmarkNodeTest"
 	mock.Env["USER_NODE_BASE_DIR"] = mock.BaseDir
 	for k, v := range mock.Env {
-		os.Setenv(key, val)
+		os.Setenv(k, v)
 		log.Info("key:", k, " val:", v)
 	}
 	mock.SubDir = make(map[string]string)
