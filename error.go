@@ -19,9 +19,9 @@ var ( // Error variable
 	// Container Errors
 	ErrorContainerCreate        = errors.New("Container create failed")
 	ErrorContainerStart         = errors.New("Container start  failed")
+	ErrorContainerStop          = errors.New("Container stop failed")
 	ErrorConfigCreateNew        = errors.New("Create a new Config error")
 	ErrorNamedContainerNotFound = errors.New("Named container is not found")
-
 	// Image Errors
 	ErrorImagePull             = errors.New("Image pull failed")
 	ErrorGetContainerWithImage = errors.New("Get container with image failed")

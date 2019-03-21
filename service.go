@@ -16,7 +16,7 @@ import (
 
 const (
 	containerStopWaitTime = 15 * time.Second
-	pullImageInterval     = 180 * time.Second
+	pullImageInterval     = 20 * time.Second
 	recoverWaitTime       = 20 * time.Second
 )
 
@@ -202,6 +202,7 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 	config := CreateConfig{}
 
 	baseDir, err := builDefaultVolumSrcBaseDir(watcher)
+	log.Info("baseDir:", baseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +243,7 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 			},
 		},
 	}
+
 	hconfig := container.HostConfig{
 		NetworkMode:  "default",
 		PortBindings: exposePorts,
@@ -290,6 +292,7 @@ func getDefaultConfig(watcher *NodeWatcher) (*CreateConfig, error) {
 }
 
 func renameDB() (err error) {
+	log.Info("befire:", nodeDataDirMainnet+"/"+blockLevelDB, " after:", nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix)
 
 	if err := os.Rename(nodeDataDirMainnet+"/"+blockLevelDB, nodeDataDirMainnet+"/"+blockLevelDB+oldDBPostfix); err != nil {
 		err = err
