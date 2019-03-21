@@ -16,8 +16,7 @@ var date = ""
 
 const (
 	dockerAPIVersion string = "1.24"
-	//logPath          string = "/var/log/bitmark-node-watcher.log"
-	logPath string = "bitmark-node-watcher.log"
+	logPath          string = "/var/log/bitmark-node-watcher.log"
 )
 
 func main() {
