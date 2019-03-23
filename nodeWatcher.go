@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
-	log "github.com/sirupsen/logrus"
+	"github.com/docker/docker/api/types/container"
+	log "github.com/google/logger"
 )
 
 const newImageDownloadIndicator = "Downloaded newer image"
@@ -26,6 +27,10 @@ func (w *NodeWatcher) pullImage() (updated bool, err error) {
 	response, err := ioutil.ReadAll(reader)
 	updated = strings.Contains(string(response), newImageDownloadIndicator)
 	return
+}
+func (w *NodeWatcher) createContainer(config CreateConfig) (container.ContainerCreateCreatedBody, error) {
+	container, err := w.DockerClient.ContainerCreate(w.BackgroundContex, config.Config, config.HostConfig, config.NetworkingConfig, w.ContainerName)
+	return container, err
 }
 
 // getTartgetContainers get the containers which has the same image name

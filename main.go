@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/docker/docker/client"
-	log "github.com/sirupsen/logrus"
+	log "github.com/google/logger"
 	"github.com/urfave/cli"
 )
 
@@ -20,18 +20,9 @@ const (
 )
 
 func main() {
-	logfile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		fmt.Printf("error opening file: %v", err)
-	}
-	log.SetOutput(logfile)
-	log.SetLevel(log.InfoLevel)
-
-	defer logfile.Close()
-
 	// assign it to the standard logger
 	app := cli.NewApp()
-	app.Name = "bitmark-node-watcher"
+	app.Name = "bitmark-node-updater"
 	app.Version = version + " - " + commit + " - " + date
 	app.Usage = "Automatically update running bitmark-node container"
 	app.Before = before
@@ -53,9 +44,22 @@ func main() {
 			Usage: "container name to create",
 			Value: "bitmarkNode",
 		},
+		cli.BoolFlag{
+			Name:  "verbose, v",
+			Usage: "log level",
+		},
 	}
 
 	app.Action = func(c *cli.Context) error {
+		logfile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+		if err != nil {
+			fmt.Printf("error opening file: %v", err)
+		}
+		verbose := c.GlobalBool("verbose")
+		log.Init("bitmark-node-updater-log", verbose, false, logfile)
+
+		defer logfile.Close()
+
 		ctx := context.Background()
 		client, err := client.NewEnvClient()
 		if err != nil {
@@ -86,7 +90,7 @@ func before(c *cli.Context) error {
 	// configure environment vars for client
 	err := envConfig(c)
 	if err != nil {
-		log.Println("envConfig Error", err)
+		log.Info("envConfig Error", err)
 		return err
 	}
 	return nil

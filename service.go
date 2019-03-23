@@ -10,8 +10,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 
-	//	"github.com/docker/go-connections/nat"
-	log "github.com/sirupsen/logrus"
+	log "github.com/google/logger"
 )
 
 const (
@@ -45,37 +44,18 @@ func StartMonitor(watcher NodeWatcher) error {
 		go imageUpdateRoutine(&watcher, updated)
 		<-updated
 		createConf, err := handleExistingContainer(watcher)
-
 		if err != nil {
 			log.Error(ErrCombind(ErrorHandleExistingContainer, err))
 			continue
 		}
-		// get ports and attach volumns because they are key information to create bitmark-node-container
+
+		var newContainer container.ContainerCreateCreatedBody
 		if createConf != nil { // err == nil and createConf == nil => container does not exist
-			err = renameDB()
-			if err != nil {
-				log.Error(ErrCombind(ErrorRenameDB, err))
-			}
-			createdContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, createConf.Config,
-				createConf.HostConfig, createConf.NetworkingConfig, watcher.ContainerName)
+			newContainer, err = watcher.createContainer(*createConf)
 			if err != nil {
 				log.Error(ErrCombind(ErrorContainerCreate, err))
-				err = recoverDB()
-				if err != nil {
-					log.Error(ErrCombind(ErrorRenameDB, err))
-				}
 				continue
 			}
-			err = watcher.startContainer(createdContainer.ID)
-			if err != nil {
-				log.Error(ErrCombind(ErrorContainerStart, err))
-				err = recoverDB()
-				if err != nil {
-					log.Error(ErrCombind(ErrorRenameDB, err))
-				}
-				continue
-			}
-			log.Info("Start container successfully")
 		} else {
 			log.Info("Creating a brand new container")
 			newContainerConfig, err := getDefaultConfig(&watcher)
@@ -83,31 +63,23 @@ func StartMonitor(watcher NodeWatcher) error {
 				log.Error(ErrCombind(ErrorConfigCreateNew, err))
 				continue
 			}
-			err = renameDB()
-			if err != nil {
-				log.Error(ErrCombind(ErrorRenameDB, err))
-			}
-			newContainer, err := watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, newContainerConfig.Config,
+			newContainer, err = watcher.DockerClient.ContainerCreate(watcher.BackgroundContex, newContainerConfig.Config,
 				newContainerConfig.HostConfig, nil, watcher.ContainerName)
-			if err != nil {
-				log.Error(ErrCombind(ErrorContainerCreate, err))
-				err = recoverDB()
-				if err != nil {
-					log.Error(ErrCombind(ErrorRenameDB, err))
-				}
-				continue
-			}
-			err = watcher.startContainer(newContainer.ID)
-			if err != nil {
-				log.Error(ErrCombind(ErrorContainerStart, err))
-				err = recoverDB()
-				if err != nil {
-					log.Error(ErrCombind(ErrorRecoverDB, err))
-				}
-				continue
-			}
-			log.Info("Start container successfully")
 		}
+		err = renameDB()
+		if err != nil {
+			log.Error(ErrCombind(ErrorRenameDB, err))
+		}
+		err = watcher.startContainer(newContainer.ID)
+		if err != nil {
+			log.Error(ErrCombind(ErrorContainerStart, err))
+			err = recoverDB()
+			if err != nil {
+				log.Error(ErrCombind(ErrorRecoverDB, err))
+			}
+			continue
+		}
+		log.Info("Start container successfully")
 	}
 	return nil
 }
@@ -157,7 +129,7 @@ func handleExistingContainer(watcher NodeWatcher) (*CreateConfig, error) {
 	if len(nodeContainers) != 0 {
 		nameContainer := watcher.getNamedContainer(nodeContainers)
 		if nameContainer == nil { //not found is not an error
-			log.Warnf(ErrorNamedContainerNotFound.Error())
+			log.Warning(ErrorNamedContainerNotFound.Error())
 			return nil, nil
 		}
 		jsonConfig, err := watcher.DockerClient.ContainerInspect(watcher.BackgroundContex, nameContainer.ID)
