@@ -9,6 +9,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
+	github.com/google/logger v1.0.1
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sirupsen/logrus v1.4.0
